@@ -32,19 +32,39 @@ It predicts the best compiler optimization flag using **LLVM IR feature extracti
 - Lightweight ML model (prototype-level)  
 - Designed for proof-of-concept scale  
 ---
-## 🧠 Example Usage
+## 🧠 To Test Smartopt CLI
+- Clone the repo
+- Install LLvm, clang
+- Create virtual environment : python3 -m venv venv
+- Activate : source venv/bin/activate
+- Install requirements : pip install -r requirements.txt
+- Test benchmark generation : python3 src/benchmark_runner.py. This proves "Clang" is working by generating : "results.csv and binaries in data/bin/ "
+- Test feature extractor : python3 src/feature_extractor.py. This should be generating :"ir/ directory with .ll files ,features.csv  "
+- Test the trained model. It should be under data/model.pki and then run the command : python3 -m src.smartopt data/benchmarks/sort.c
+- Expected Output :
+  - 🚀 SmartOpt Analysis Started on: sort.c
+  - 🔍 Generating LLVM IR...
+  - 📊 Extracting features...
+  - 🧠 Loading SmartOpt model...
+  - ✨ Predicting best optimization flag...
+  - ✅ SmartOpt Recommendation:
+  - 👉 Best optimization flag: -O3
+     
+----
+## 🧠 To Test using Docker
+- Clone the repo
+- Install docker
+- Build the image : docker build -t smartopt-backend .
+- Run the image :docker run -p 8082:8080 smartopt-backend
+- Sample Test for C  : curl -X POST "http://localhost:8082/analyze-code" -H "Content-Type: application/json" -d '{"code": "int main(){ return 0; }"}'
+- Sample Test for Rust : curl -X POST "http://localhost:8082/analyze-code" -H "Content-Type: application/json" -d '{"code": "fn main(){ println!(\"Hello\"); }"}'
+- Sample Test for C++ : curl -X POST "http://localhost:8082/analyze-code" -H "Content-Type: application/json" -d "{\"code\": \"#include <iostream>\\nint main(){ std::cout << 5; }\"}"
+- To check the Outputs: Please refer the Document "Smartopt.pdf"
+  
+------
+  
 
-**API Endpoint:**  
-`POST /analyze-code`
 
 
-**Sample Payload and Response:**
-```json
-{"code": "int main() { return 0; }"}
-{
-  "language": ".c",
-  "best_flag": "-O2",
-  "explanation": "The -O2 flag balances speed and size efficiently."
-}
 
 
