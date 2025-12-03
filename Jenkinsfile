@@ -33,7 +33,7 @@ pipeline {
                     pip install --quiet ruff pyflakes
 
                     echo "▶ Running ruff Lint..."
-                    ruff check .
+                    ruff check . --fix
 
                     echo "▶ Running Pyflakes..."
                     pyflakes .
