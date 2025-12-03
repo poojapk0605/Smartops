@@ -56,44 +56,44 @@ def detect_language_from_code(code: str) -> str:
 # ---------------------------------------------------
 # 🧠 Gemma LLM Explanation Wrapper
 # ---------------------------------------------------
-def explain_results(best_flag, stats, language):
-    """
-    Calls Gemma-2B-IT to generate a 2–3 sentence explanation.
-    """
+# def explain_results(best_flag, stats, language):
+#     """
+#     Calls Gemma-2B-IT to generate a 2–3 sentence explanation.
+#     """
 
-    if HF_API_KEY is None:
-        return "⚠️ LLM explanation unavailable (HF_API_KEY not set)."
+#     if HF_API_KEY is None:
+#         return "⚠️ LLM explanation unavailable (HF_API_KEY not set)."
 
-    headers = {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Content-Type": "application/json"
-    }
+#     headers = {
+#         "Authorization": f"Bearer {HF_API_KEY}",
+#         "Content-Type": "application/json"
+#     }
 
-    prompt = f"""
-You are an expert compiler engineer. Explain why the optimization flag {best_flag} 
-performed best for the provided source code.
+#     prompt = f"""
+# You are an expert compiler engineer. Explain why the optimization flag {best_flag} 
+# performed best for the provided source code.
 
-Language detected: {language}
+# Language detected: {language}
 
-Benchmark results:
-{stats}
+# Benchmark results:
+# {stats}
 
-Explain in 2–3 simple sentences so a beginner can understand.
-"""
+# Explain in 2–3 simple sentences so a beginner can understand.
+# """
 
-    payload = {"inputs": prompt}
+#     payload = {"inputs": prompt}
 
-    try:
-        response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=30)
-        out = response.json()
+#     try:
+#         response = requests.post(HF_MODEL_URL, headers=headers, json=payload, timeout=30)
+#         out = response.json()
 
-        # HuggingFace returns: [{"generated_text": "..."}]
-        if isinstance(out, list) and "generated_text" in out[0]:
-            return out[0]["generated_text"]
-        else:
-            return "⚠️ Could not extract explanation from model."
-    except Exception as e:
-        return f"⚠️ LLM error: {e}"
+#         # HuggingFace returns: [{"generated_text": "..."}]
+#         if isinstance(out, list) and "generated_text" in out[0]:
+#             return out[0]["generated_text"]
+#         else:
+#             return "⚠️ Could not extract explanation from model."
+#     except Exception as e:
+#         return f"⚠️ LLM error: {e}"
 
 
 # ---------------------------------------------------
