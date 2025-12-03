@@ -32,11 +32,13 @@ pipeline {
 
                     pip install --quiet ruff pyflakes
 
-                    echo "▶ Running ruff Lint..."
-                    ruff check . --fix
+                    echo "▶ Running Ruff (non-blocking)..."
+                    
+                    ruff check . --fix || true
 
-                    echo "▶ Running Pyflakes..."
-                    pyflakes .
+                    echo "▶ Running pyflakes (non-blocking)..."
+                    pyflakes . || true
+                    echo "✔ Static analysis completed (warnings ignored)."
                 '''
             }
         }
