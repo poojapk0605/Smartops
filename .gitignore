@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# MacOS
+.DS_Store
+
+# Data artifacts
+data/bin/
+data/ir/
+*.ll
+data/results.csv
+data/features.csv
+
+# Logs
+*.log
+logs/

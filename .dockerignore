@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.py[cod]
+*.log
+.git
+.gitignore
+data/bin/
+data/ir/
+data/results.csv
+data/features.csv
+.DS_Store
