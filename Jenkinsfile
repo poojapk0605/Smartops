@@ -142,7 +142,7 @@ EOF
                         echo "🚀 Deploying to Cloud Run..."
 
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
-
+                        gcloud config set project $PROJECT_ID
                         gcloud run deploy $SERVICE_NAME \
                             --image=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$BUILD_NUMBER \
                             --region=$REGION \
