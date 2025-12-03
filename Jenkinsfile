@@ -2,58 +2,123 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_ID      = "smartopsbackend"
-        REGION          = "us-central1"
-        REPO_NAME       = "smartopt-backend"
-        SERVICE_NAME    = "smartopt-backend"
-        IMAGE_NAME      = "smartopt-backend"
+        PROJECT_ID   = "smartopsbackend"
+        REGION       = "us-central1"
+        REPO_NAME    = "smartopt-backend"
+        SERVICE_NAME = "smartopt-backend"
+        IMAGE_NAME   = "smartopt-backend"
     }
 
     stages {
 
+        /* -----------------------------
+           CHECKOUT CODE
+        ----------------------------- */
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Repository checked out successfully."
+                echo "✅ Repository checkout complete."
             }
         }
 
-        stage('Install Python deps & Run Tests') {
+        /* -----------------------------
+           PYTHON STATIC ANALYSIS (Production Safe)
+        ----------------------------- */
+        stage('Static Analysis') {
             steps {
                 sh '''
-                    python3.11 -m venv venv
+                    python3 -m venv venv
                     . venv/bin/activate
-                    pip install -r requirements.txt
 
-                    # Run syntax-check instead of tests (safe for prototypes)
-                    python3 -m py_compile $(find . -name "*.py")
+                    pip install --quiet ruff pyflakes
+
+                    echo "▶ Running ruff Lint..."
+                    ruff check .
+
+                    echo "▶ Running Pyflakes..."
+                    pyflakes .
                 '''
             }
         }
 
+        /* -----------------------------
+           PYTHON SYNTAX CHECK (Safe for Thousands of Files)
+        ----------------------------- */
+        stage('Syntax Check') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+
+                    echo "▶ Running syntax validation..."
+                    python3 - << 'EOF'
+import os, py_compile, sys
+
+errors = 0
+
+for root, dirs, files in os.walk("."):
+    if "venv" in root:
+        continue
+    for f in files:
+        if f.endswith(".py"):
+            path = os.path.join(root, f)
+            try:
+                py_compile.compile(path, doraise=True)
+                print(f"OK: {path}")
+            except Exception as e:
+                print(f"❌ Syntax error in {path}: {e}")
+                errors += 1
+
+if errors > 0:
+    sys.exit(1)
+EOF
+                '''
+            }
+        }
+
+        /* -----------------------------
+           OPTIONAL TEST PHASE (pytest)
+           Ready for future tests
+        ----------------------------- */
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pip install pytest
+
+                    echo "▶ Running pytest"
+                    pytest || true   # Remove "|| true" once tests exist
+                '''
+            }
+        }
+
+        /* -----------------------------
+           DOCKER BUILD
+        ----------------------------- */
         stage('Docker Build') {
             steps {
                 sh '''
+                    echo "🐳 Building Docker image..."
                     docker build -t $IMAGE_NAME .
                 '''
             }
         }
 
-        stage('Auth & Push to Artifact Registry') {
+        /* -----------------------------
+           PUSH DOCKER IMAGE TO ARTIFACT REGISTRY
+        ----------------------------- */
+        stage('Push to Artifact Registry') {
             steps {
-                withCredentials([
-                    file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')
-                ]) {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        echo "⚙️ Activating GCP service account..."
+                        echo "🔐 Authenticating to GCP..."
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
-                        echo "⚙️ Configuring Docker to use Artifact Registry..."
+                        echo "🔧 Configuring Docker for Artifact Registry..."
                         gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
-                        echo "⚙️ Tagging image for Artifact Registry..."
+                        echo "🏷 Tagging image..."
                         docker tag $IMAGE_NAME \
-                          $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$BUILD_NUMBER
+                            $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$BUILD_NUMBER
 
                         echo "⬆️ Pushing image..."
                         docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$BUILD_NUMBER
@@ -62,6 +127,9 @@ pipeline {
             }
         }
 
+        /* -----------------------------
+           DEPLOY TO CLOUD RUN
+        ----------------------------- */
         stage('Deploy to Cloud Run') {
             steps {
                 withCredentials([
@@ -78,7 +146,12 @@ pipeline {
                             --region=$REGION \
                             --platform=managed \
                             --allow-unauthenticated \
-                            --set-env-vars HF_API_KEY=$HF_API_KEY
+                            --set-env-vars=HF_API_KEY=$HF_API_KEY \
+                            --timeout=300 \
+                            --cpu=1 \
+                            --memory=1Gi
+
+                        echo "🌍 Deployment complete."
                     '''
                 }
             }
@@ -90,7 +163,7 @@ pipeline {
             echo "🎉 Deployment successful!"
         }
         failure {
-            echo "❌ Deployment failed. Check logs."
+            echo "❌ Deployment failed — check Jenkins logs."
         }
     }
 }
