@@ -100,7 +100,7 @@ EOF
             steps {
                 sh '''
                     echo "🐳 Building Docker image..."
-                    docker build -t $IMAGE_NAME .
+                    docker build --platform=linux/amd64 -t $IMAGE_NAME .
                 '''
             }
         }
