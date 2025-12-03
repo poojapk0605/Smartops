@@ -135,8 +135,7 @@ EOF
         stage('Deploy to Cloud Run') {
             steps {
                 withCredentials([
-                    file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
-                    string(credentialsId: 'hf-api-key', variable: 'HF_API_KEY')
+                    file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')
                 ]) {
                     sh '''
                         echo "🚀 Deploying to Cloud Run..."
