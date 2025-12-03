@@ -19,12 +19,9 @@ load_dotenv()
 # ---------------------------------------------------
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-# OPTIONAL: Hardcode for testing ONLY (remove later)
-if HF_API_KEY is None:
-    HF_API_KEY = "hf_your_token_here"   # <-- replace with your key for testing
 
 
-HF_MODEL_URL = "https://api-inference.huggingface.co/models/google/gemma-2b-it"
+HF_MODEL_URL = "https://api-inference.huggingface.co/models/google/gemma-2-2b-it"
 
 
 # ---------------------------------------------------
