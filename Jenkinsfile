@@ -148,7 +148,6 @@ EOF
                             --region=$REGION \
                             --platform=managed \
                             --allow-unauthenticated \
-                            --set-secrets HF_API_KEY=HF_API_KEY:latest \
                             --timeout=300 \
                             --cpu=1 \
                             --memory=1Gi
