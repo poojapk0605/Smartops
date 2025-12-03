@@ -21,7 +21,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 
 
 
-HF_MODEL_URL = "https://api-inference.huggingface.co/models/google/gemma-2-2b-it"
+# HF_MODEL_URL = "https://api-inference.huggingface.co/models/google/gemma-2-2b-it"
 
 
 # ---------------------------------------------------
