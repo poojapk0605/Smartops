@@ -20,8 +20,6 @@ pipeline {
         REPO_NAME    = "smartopt-backend"
         SERVICE_NAME = "smartopt-backend"
         IMAGE_NAME   = "smartopt-backend"
-
-        // NEW_VERSION will be set in the Compute Version stage
         NEW_VERSION  = ""
     }
 
@@ -31,11 +29,9 @@ pipeline {
            ROLLBACK ONLY
         ----------------------------- */
         stage('Rollback') {
-            when {
-                expression { return params.ROLLBACK_VERSION?.trim() }
-            }
+            when { expression { params.ROLLBACK_VERSION?.trim() } }
             steps {
-                echo "⚠️ Rolling back to image tag: ${params.ROLLBACK_VERSION}"
+                echo "⚠️ Rolling back to version: ${params.ROLLBACK_VERSION}"
 
                 withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
@@ -43,48 +39,68 @@ pipeline {
                         gcloud config set project $PROJECT_ID
 
                         gcloud run deploy $SERVICE_NAME \
-                          --image=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${ROLLBACK_VERSION} \
+                          --image=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$ROLLBACK_VERSION \
                           --region=$REGION \
                           --platform=managed \
                           --allow-unauthenticated
 
-                        echo "🔁 Rollback deployment completed."
+                        echo "🔁 Rollback completed."
                     '''
                 }
             }
         }
 
         /* -----------------------------
-           CHECKOUT
+           CHECKOUT CODE
         ----------------------------- */
         stage('Checkout') {
             when { not { expression { params.ROLLBACK_VERSION?.trim() } } }
             steps {
                 checkout scm
-                echo "✅ Repository checkout complete."
+                echo "📁 Checked out repository."
             }
         }
 
         /* -----------------------------
-           COMPUTE VERSION (Semantic)
+           COMPUTE VERSION
         ----------------------------- */
         stage('Compute Version') {
             when { not { expression { params.ROLLBACK_VERSION?.trim() } } }
             steps {
                 script {
-                    if (params.VERSION_BUMP == 'none') {
-                        def version = readFile("${WORKSPACE}/VERSION").trim()
-                        echo "Read existing VERSION: ${version}"
+                    def versionFilePath = "${WORKSPACE}/VERSION"
 
-                        env.NEW_VERSION = version
+                    if (!fileExists(versionFilePath)) {
+                        error("❌ VERSION file missing at: ${versionFilePath}")
+                    }
+
+                    def current = readFile(versionFilePath).trim()
+                    echo "📌 Current VERSION = ${current}"
+
+                    if (params.VERSION_BUMP == 'none') {
+                        env.NEW_VERSION = current
+                        echo "➡ No bump requested. Using existing version: ${env.NEW_VERSION}"
                     } else {
+                        echo "➡ Bumping version (${params.VERSION_BUMP})..."
+
                         def bumped = sh(
                             script: "python3 ci/bump_version.py ${params.VERSION_BUMP}",
                             returnStdout: true
                         ).trim()
-                        echo "Computed NEW_VERSION: ${bumped}"
+
+                        if (!bumped || bumped == "null") {
+                            error("❌ bump_version.py produced invalid version: '${bumped}'")
+                        }
+
+                        echo "🎯 NEW_VERSION computed = ${bumped}"
+
+                        // Write updated VERSION file
+                        writeFile file: versionFilePath, text: bumped + "\n"
+
                         env.NEW_VERSION = bumped
                     }
+
+                    echo "✔ Final NEW_VERSION = ${env.NEW_VERSION}"
                 }
             }
         }
@@ -107,7 +123,7 @@ pipeline {
                     echo "▶ Running Pyflakes..."
                     pyflakes . || true
 
-                    echo "✔ Static analysis completed."
+                    echo "✔ Static analysis done."
                 '''
             }
         }
@@ -123,7 +139,6 @@ pipeline {
                     pip install -r requirements.txt
                     pip install pytest
 
-                    # Allow src imports
                     export PYTHONPATH=$WORKSPACE
 
                     echo "▶ Running pytest..."
@@ -138,8 +153,13 @@ pipeline {
         stage('Docker Build') {
             when { not { expression { params.ROLLBACK_VERSION?.trim() } } }
             steps {
+                script {
+                    if (!env.NEW_VERSION?.trim()) {
+                        error("❌ NEW_VERSION is empty — cannot build Docker image.")
+                    }
+                }
                 sh '''
-                    echo "🐳 Building Docker image with tag: $NEW_VERSION"
+                    echo "🐳 Building Docker image: $IMAGE_NAME:$NEW_VERSION"
                     docker build --platform=linux/amd64 -t $IMAGE_NAME:$NEW_VERSION .
                 '''
             }
@@ -156,10 +176,9 @@ pipeline {
                         echo "🔐 Authenticating to GCP..."
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
-                        echo "🔧 Configuring Docker for Artifact Registry..."
                         gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
-                        echo "🏷 Tagging image for Artifact Registry..."
+                        echo "🏷 Tagging image..."
                         docker tag $IMAGE_NAME:$NEW_VERSION \
                           $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$NEW_VERSION
 
@@ -171,18 +190,17 @@ pipeline {
         }
 
         /* -----------------------------
-           TAG + GITHUB RELEASE (optional)
-           Requires: GitHub CLI + GitHub token
+           GITHUB RELEASE + TAGGING
         ----------------------------- */
         stage('Tag & GitHub Release') {
             when { not { expression { params.ROLLBACK_VERSION?.trim() } } }
             steps {
                 withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
                     sh '''
-                        echo "📝 Generating release notes..."
+                        echo "📝 Generating changelog..."
                         python3 ci/generate_changelog.py $NEW_VERSION
 
-                        echo "🏷 Creating git tag v$NEW_VERSION"
+                        echo "🏷 Tagging Git version v$NEW_VERSION"
                         git config user.name "Jenkins"
                         git config user.email "jenkins@smartopt"
                         git tag -a "v$NEW_VERSION" -m "SmartOpt v$NEW_VERSION"
@@ -191,12 +209,10 @@ pipeline {
                         echo "🔐 Authenticating GitHub CLI..."
                         echo "$GITHUB_TOKEN" | gh auth login --with-token
 
-                        echo "📦 Creating GitHub Release v$NEW_VERSION"
+                        echo "📦 Creating GitHub release..."
                         gh release create "v$NEW_VERSION" \
                           --title "SmartOpt v$NEW_VERSION" \
                           --notes-file CHANGELOG_RELEASE.md || true
-
-                        echo "✔ GitHub Release step finished."
                     '''
                 }
             }
@@ -210,7 +226,7 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        echo "🚀 Deploying to Cloud Run with image tag: $NEW_VERSION"
+                        echo "🚀 Deploying version: $NEW_VERSION"
 
                         gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
                         gcloud config set project $PROJECT_ID
@@ -233,10 +249,10 @@ pipeline {
 
     post {
         success {
-            echo "🎉 Build / Release / Deploy successful! Version: ${env.NEW_VERSION}"
+            echo "🎉 SUCCESS — SmartOpt deployed. Version: ${env.NEW_VERSION}"
         }
         failure {
-            echo "❌ Build failed — check Jenkins logs."
+            echo "❌ FAILURE — Check logs."
         }
     }
 }
