@@ -1,9 +1,10 @@
-import requests
-import os
+from fastapi.testclient import TestClient
+from backend.main import app
 
-BACKEND_URL = os.getenv("TEST_URL", "http://localhost:8080")
+client = TestClient(app)
 
 def test_health():
-    response = requests.get(f"{BACKEND_URL}/health")
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
