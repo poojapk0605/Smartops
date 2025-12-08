@@ -73,15 +73,17 @@ pipeline {
             steps {
                 script {
                     if (params.VERSION_BUMP == 'none') {
-                        env.NEW_VERSION = readFile('VERSION').trim()
-                        echo "Using existing VERSION: ${env.NEW_VERSION}"
+                        def version = readFile("${WORKSPACE}/VERSION").trim()
+                        echo "Read existing VERSION: ${version}"
+
+                        env.NEW_VERSION = version
                     } else {
-                        echo "Bumping VERSION with: ${params.VERSION_BUMP}"
-                        env.NEW_VERSION = sh(
+                        def bumped = sh(
                             script: "python3 ci/bump_version.py ${params.VERSION_BUMP}",
                             returnStdout: true
                         ).trim()
-                        echo "New semantic version: ${env.NEW_VERSION}"
+                        echo "Computed NEW_VERSION: ${bumped}"
+                        env.NEW_VERSION = bumped
                     }
                 }
             }
