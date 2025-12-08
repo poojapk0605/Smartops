@@ -1,13 +1,15 @@
-import requests
-import os
-import json
+from fastapi.testclient import TestClient
+from backend.main import app
 
-BACKEND_URL = os.getenv("TEST_URL", "http://localhost:8080")
+client = TestClient(app)
 
 def test_analyze_c():
     payload = {"code": "int main() { return 0; }"}
-    r = requests.post(f"{BACKEND_URL}/analyze-code", json=payload)
-    assert r.status_code == 200
-    data = r.json()
+    response = client.post("/analyze-code", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+
     assert "best_flag" in data
     assert "flags" in data
+    assert "language" in data
